@@ -1,10 +1,12 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class MoMoPaymentScreen extends StatelessWidget {
   final String paymentUrl;
 
-  const MoMoPaymentScreen({super.key, required this.paymentUrl});
+  const MoMoPaymentScreen({Key? key, required this.paymentUrl})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {

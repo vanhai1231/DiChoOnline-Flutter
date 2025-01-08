@@ -1,101 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../constants.dart';
 
 import '../../components/dot_indicators.dart';
 import '../auth/sign_in_screen.dart';
 import 'components/onboard_content.dart';
-// class OnboardingScreen extends StatefulWidget {
-//   const OnboardingScreen({super.key});
 
-//   @override
-//   State<OnboardingScreen> createState() => _OnboardingScreenState();
-// }
-// class _OnboardingScreenState extends State<OnboardingScreen> {
-//   int currentPage = 0;
-//   List<Map<String, dynamic>> demoData = []; // Danh sách lưu trữ dữ liệu từ Firestore
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     fetchOnboardingData();
-//   }
-//
-//   // Hàm lấy dữ liệu từ Firestore
-//   void fetchOnboardingData() async {
-//     final CollectionReference collection =
-//     FirebaseFirestore.instance.collection('products');
-//
-//     try {
-//       QuerySnapshot querySnapshot = await collection.get();
-//       setState(() {
-//         demoData = querySnapshot.docs.map((doc) {
-//           return {
-//             "image": doc["image"],
-//             "product_name": doc["product_name"],
-//             "description": doc["description"],
-//           };
-//         }).toList();
-//       });
-//     } catch (e) {
-//       print("Error fetching data: $e");
-//     }
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       body: SafeArea(
-//         child: demoData.isEmpty
-//             ? const Center(child: CircularProgressIndicator()) // Hiển thị loading khi dữ liệu đang tải
-//             : Column(
-//           children: [
-//             const Spacer(flex: 2),
-//             Expanded(
-//               flex: 14,
-//               child: PageView.builder(
-//                 itemCount: demoData.length,
-//                 onPageChanged: (value) {
-//                   setState(() {
-//                     currentPage = value;
-//                   });
-//                 },
-//                 itemBuilder: (context, index) => OnboardContent(
-//                   illustration: demoData[index]["image"],
-//                   title: demoData[index]["product_name"],
-//                   text: demoData[index]["description"],
-//                 ),
-//               ),
-//             ),
-//             const Spacer(),
-//             Row(
-//               mainAxisAlignment: MainAxisAlignment.center,
-//               children: List.generate(
-//                 demoData.length,
-//                     (index) => DotIndicator(isActive: index == currentPage),
-//               ),
-//             ),
-//             const Spacer(flex: 2),
-//             Padding(
-//               padding: const EdgeInsets.symmetric(horizontal: defaultPadding),
-//               child: ElevatedButton(
-//                 onPressed: () {
-//                   Navigator.push(
-//                     context,
-//                     MaterialPageRoute(
-//                       builder: (context) =>  SignInScreen(),
-//                     ),
-//                   );
-//                 },
-//                 child: Text("Get Started".toUpperCase()),
-//               ),
-//             ),
-//             const Spacer(),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
 
 
 class OnboardingScreen extends StatefulWidget {
@@ -146,7 +56,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>  SignInScreen(),
+                      builder: (context) =>  const SignInScreen(),
                     ),
                   );
                 },

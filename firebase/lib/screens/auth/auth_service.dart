@@ -4,27 +4,40 @@ import 'package:flutter/material.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../admin/dashboard_screen.dart';
 import '../currentAddress/find_restaurants_screen.dart';
+
 
 
 class AuthService {
   final _auth = FirebaseAuth.instance;
   final _storage = FlutterSecureStorage();
 
-  // Đăng nhập bằng email và mật khẩu
-  Future<void> signInWithEmailAndPassword(String email, String password, BuildContext context) async {
+  Future<void> signInWithEmailAndPassword(
+      String email, String password, BuildContext context) async {
     try {
-      final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      final UserCredential userCredential =
+      await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       if (userCredential.user != null) {
-        await saveCredentials(email, password);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const FindRestaurantsScreen()),
-        );
+        if (email == "vanhai11203@gmail.com") {
+          // Nếu là admin
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+          );
+        } else {
+          // Người dùng thông thường
+          await saveCredentials(email, password);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+                builder: (context) => const FindRestaurantsScreen()),
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       String message;
@@ -47,6 +60,7 @@ class AuthService {
       throw Exception(message);
     }
   }
+
 
   // Đăng nhập bằng vân tay hoặc nhận diện khuôn mặt (sử dụng thông tin đã lưu)
   Future<void> signInWithBiometrics(BuildContext context) async {

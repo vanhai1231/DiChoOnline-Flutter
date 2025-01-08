@@ -37,12 +37,10 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     super.initState();
     // Set current values if available
     if (widget.currentName != null) nameController.text = widget.currentName!;
-    if (widget.currentAddress != null) {
+    if (widget.currentAddress != null)
       addressController.text = widget.currentAddress!;
-    }
-    if (widget.currentPhone != null) {
+    if (widget.currentPhone != null)
       phoneController.text = widget.currentPhone!;
-    }
   }
 
   Future<void> saveAddressToFirebase(String name, String address, String phone) async {

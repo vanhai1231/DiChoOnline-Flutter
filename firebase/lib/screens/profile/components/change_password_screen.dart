@@ -1,7 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class ModernChangePasswordScreen extends StatefulWidget {
-  const ModernChangePasswordScreen({super.key});
+  const ModernChangePasswordScreen({Key? key}) : super(key: key);
 
   @override
   State<ModernChangePasswordScreen> createState() =>
@@ -25,6 +26,8 @@ class _ModernChangePasswordScreenState
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   void initState() {
@@ -145,11 +148,26 @@ class _ModernChangePasswordScreenState
     if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isLoading = true);
 
-      await Future.delayed(const Duration(seconds: 2));
+      try {
+        User? user = _auth.currentUser;
 
-      if (mounted) {
+        if (user != null) {
+          // Reauthenticate the user before changing the password
+          AuthCredential credential = EmailAuthProvider.credential(
+            email: user.email!,
+            password: _currentPasswordController.text.trim(),
+          );
+
+          await user.reauthenticateWithCredential(credential);
+
+          await user.updatePassword(_newPasswordController.text.trim());
+
+          setState(() => _isLoading = false);
+          _showSuccessDialog();
+        }
+      } catch (e) {
         setState(() => _isLoading = false);
-        _showSuccessDialog();
+        _showErrorDialog('Error: ${e.toString()}');
       }
     }
   }
@@ -181,6 +199,21 @@ class _ModernChangePasswordScreenState
     );
   }
 
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -188,83 +221,90 @@ class _ModernChangePasswordScreenState
         title: const Text('Đổi mật khẩu'),
         backgroundColor: Colors.green,
       ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Icon(Icons.lock, size: 80, color: Colors.green),
-                const SizedBox(height: 16),
-                const Text(
-                  'Tạo mật khẩu mới',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                _buildPasswordField(
-                  label: 'Mật khẩu hiện tại',
-                  controller: _currentPasswordController,
-                  showPassword: _showCurrentPassword,
-                  toggleVisibility: () =>
-                      setState(() => _showCurrentPassword = !_showCurrentPassword),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Vui lòng nhập mật khẩu hiện tại';
-                    }
-                    return null;
-                  },
-                ),
-                _buildPasswordField(
-                  label: 'Mật khẩu mới',
-                  controller: _newPasswordController,
-                  showPassword: _showNewPassword,
-                  toggleVisibility: () =>
-                      setState(() => _showNewPassword = !_showNewPassword),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Vui lòng nhập mật khẩu mới';
-                    }
-                    if ((value?.length ?? 0) < 8) {
-                      return 'Mật khẩu phải có ít nhất 8 ký tự';
-                    }
-                    return null;
-                  },
-                ),
-                _buildPasswordStrengthIndicator(),
-                _buildPasswordField(
-                  label: 'Xác nhận mật khẩu mới',
-                  controller: _confirmPasswordController,
-                  showPassword: _showConfirmPassword,
-                  toggleVisibility: () =>
-                      setState(() => _showConfirmPassword = !_showConfirmPassword),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Vui lòng xác nhận mật khẩu mới';
-                    }
-                    if (value != _newPasswordController.text) {
-                      return 'Mật khẩu xác nhận không khớp';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _handleChangePassword,
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+      body: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).unfocus(); // Close the keyboard when tapping elsewhere
+        },
+        child: SingleChildScrollView(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(Icons.lock, size: 80, color: Colors.green),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Tạo mật khẩu mới',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Đổi mật khẩu', style: TextStyle(fontSize: 16)),
+                    const SizedBox(height: 24),
+                    _buildPasswordField(
+                      label: 'Mật khẩu hiện tại',
+                      controller: _currentPasswordController,
+                      showPassword: _showCurrentPassword,
+                      toggleVisibility: () =>
+                          setState(() => _showCurrentPassword = !_showCurrentPassword),
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Vui lòng nhập mật khẩu hiện tại';
+                        }
+                        return null;
+                      },
+                    ),
+                    _buildPasswordField(
+                      label: 'Mật khẩu mới',
+                      controller: _newPasswordController,
+                      showPassword: _showNewPassword,
+                      toggleVisibility: () =>
+                          setState(() => _showNewPassword = !_showNewPassword),
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Vui lòng nhập mật khẩu mới';
+                        }
+                        if ((value?.length ?? 0) < 8) {
+                          return 'Mật khẩu phải có ít nhất 8 ký tự';
+                        }
+                        return null;
+                      },
+                    ),
+                    _buildPasswordStrengthIndicator(),
+                    _buildPasswordField(
+                      label: 'Xác nhận mật khẩu mới',
+                      controller: _confirmPasswordController,
+                      showPassword: _showConfirmPassword,
+                      toggleVisibility: () =>
+                          setState(() => _showConfirmPassword = !_showConfirmPassword),
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Vui lòng xác nhận mật khẩu mới';
+                        }
+                        if (value != _newPasswordController.text) {
+                          return 'Mật khẩu xác nhận không khớp';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _handleChangePassword,
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Đổi mật khẩu', style: TextStyle(fontSize: 16)),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

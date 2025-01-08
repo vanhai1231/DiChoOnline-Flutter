@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../components/small_dot.dart';
+import 'small_dot.dart';
 
 import '../constants.dart';
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../scalton/scalton_line.dart';
-import '../scalton/scalton_rounded_container.dart';
+import 'scalton_line.dart';
+import 'scalton_rounded_container.dart';
 
 class MediumCardScalton extends StatelessWidget {
   const MediumCardScalton({

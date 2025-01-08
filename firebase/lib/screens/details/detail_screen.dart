@@ -1,5 +1,8 @@
+import 'dart:ffi';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:firebase/VideoPlayer/MediaViewerString.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -8,11 +11,13 @@ import 'package:intl/intl.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:http/http.dart' as http;
+import 'package:video_player/video_player.dart';
 import '../orderDetails/order_details_screen.dart';
+import '../reviews/AllReviewsPage.dart';
 
 class DetailScreen extends StatefulWidget {
   final Map<dynamic, dynamic> product; // Nhận dữ liệu sản phẩm
-  const DetailScreen({super.key, required this.product});
+  const DetailScreen({Key? key, required this.product}) : super(key: key);
 
   @override
   _DetailScreenState createState() => _DetailScreenState();
@@ -26,6 +31,26 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
   int quantity = 1; // Số lượng mặc định là 1
   bool _isFavorite = false; // Biến để theo dõi trạng thái yêu thích
   int? maxQuantity; // Số lượng tối đa từ Firebase
+  List<String> _imageFiles = []; // To store image URLs
+  String? _videoFile; // To store the video URL
+  Map<dynamic, dynamic> _reviews = {};
+
+  final _promotionsRef = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL: 'https://fir-23ae1-default-rtdb.asia-southeast1.firebasedatabase.app',
+  ).ref('promotions');
+  final _reviewsRef = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL: 'https://fir-23ae1-default-rtdb.asia-southeast1.firebasedatabase.app',
+  ).ref('reviews');
+
+  Map<dynamic, dynamic> _promotions = {};
+
+  Map<String, dynamic> reviews = {};
+
+
+
+  bool isLoading = true;
   ///số lượng max
   Future<void> fetchMaxQuantity() async {
     try {
@@ -67,13 +92,96 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
     }
   }
 
-  @override
+  Future<void> fetchReviewsForProduct() async {
+    try {
+      // Lấy tất cả đánh giá từ cơ sở dữ liệu Firebase
+      final snapshot = await FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL:
+        'https://fir-23ae1-default-rtdb.asia-southeast1.firebasedatabase.app',
+      )
+          .ref()
+          .child('reviews')
+          .once();
+
+      if (snapshot.snapshot.value != null) {
+        final allReviews = Map<String, dynamic>.from(snapshot.snapshot.value as Map);
+
+        // Filter reviews based on productId
+        final filteredReviews = Map.fromEntries(
+          allReviews.entries.where((entry) =>
+          entry.value['productId'] == widget.product['id']),
+        );
+
+        setState(() {
+          reviews = filteredReviews;
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          reviews = {};
+          isLoading = false;
+        });
+
+      }
+    } catch (e) {
+      debugPrint("Error fetching reviews: $e");
+      setState(() {
+        reviews = {};
+        isLoading = false;
+      });
+    }
+  }
+
+  void _loadPromotions() async {
+    try {
+      final snapshot = await _promotionsRef.get();
+      if (snapshot.exists) {
+        final data = snapshot.value as Map<dynamic, dynamic>;
+
+        // Print the data to the console for inspection
+        print("Promotions Data: $data");
+
+        setState(() {
+          // Convert Map values to List<Map<dynamic, dynamic> and update the UI
+          _promotions = Map.fromEntries(data.entries); // Keep _promotions as Map
+        });
+      }
+    } catch (error) {
+      print("Error loading promotions: $error");
+    }
+  }
+
+  void _loadReviews() async {
+    try {
+      final snapshot = await _reviewsRef.get();
+      if (snapshot.exists) {
+
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        print("Reviews data: $data");  // In dữ liệu để kiểm tra
+        // Kiểm tra mounted trước khi gọi setState
+
+        setState(() {
+          _reviews = Map.fromEntries(data.entries);
+        });
+
+
+      }
+    } catch (error) {
+      print("Error loading reviews: $error");
+    }
+  }
+    @override
   void initState() {
     super.initState();
+    fetchReviewsForProduct();
     fetchMaxQuantity(); // Gọi hàm lấy số lượng khi khởi tạo
+    _loadPromotions();
     _checkIfFavorite(); // Kiểm tra trạng thái yêu thích khi trang được mở
     _setupAnimation();
+    _loadReviews();
   }
+
   void _setupAnimation() {
     _controller = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -199,13 +307,13 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
               "quantity": existingQuantity + quantity,
             });
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    "${widget.product['product_name']} (x$quantity) updated in cart!"),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            // ScaffoldMessenger.of(context).showSnackBar(
+            //   SnackBar(
+            //     content: Text(
+            //         "${widget.product['product_name']} (x${quantity}) thêm vào giỏ hàng!"),
+            //     duration: const Duration(seconds: 2),
+            //   ),
+            // );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -224,13 +332,13 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
               "quantity": quantity,
             });
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    "${widget.product['product_name']} (x$quantity) added to cart!"),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            // ScaffoldMessenger.of(context).showSnackBar(
+            //   SnackBar(
+            //     content: Text(
+            //         "${widget.product['product_name']} (x$quantity) added to cart!"),
+            //     duration: const Duration(seconds: 2),
+            //   ),
+            // );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -250,13 +358,13 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
             "quantity": quantity,
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  "${widget.product['product_name']} (x$quantity) added to cart!"),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(
+          //     content: Text(
+          //         "${widget.product['product_name']} (x$quantity) added to cart!"),
+          //     duration: const Duration(seconds: 2),
+          //   ),
+          // );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -489,7 +597,7 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
     final RenderBox cartRenderBox = cartKey.currentContext!.findRenderObject() as RenderBox;
     final Offset endOffset = cartRenderBox.localToGlobal(Offset.zero);
 
-    OverlayState overlayState = Overlay.of(context);
+    OverlayState overlayState = Overlay.of(context)!;
     OverlayEntry overlayEntry = OverlayEntry(
       builder: (context) => AnimatedPositioned(
         duration: Duration(milliseconds: 700),
@@ -511,12 +619,15 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
               ),
             );
           },
-          child: ClipOval(
-            child: Container(
-              width: 50,
-              height: 50,
-              color: Colors.blue,
-              child: const Icon(Icons.shopping_cart, color: Colors.white),
+          child: Container(
+            height: 50,
+            width: 50,
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: CachedNetworkImageProvider(widget.product['image']),
+                fit: BoxFit.cover,
+              ),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
         ),
@@ -533,7 +644,6 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
   /// số lượng
   void showQuantityPicker(BuildContext context, int initialQuantity, int maxQuantity, Function(int) onQuantityChanged) {
     // Hàm hiển thị một modal bottom sheet để người dùng chọn số lượng
-    // context: ngữ cảnh hiện tại
     // initialQuantity: số lượng mặc định được chọn ban đầu
     // maxQuantity: số lượng tối đa có thể chọn
     // onQuantityChanged: hàm callback để xử lý khi người dùng xác nhận số lượng đã chọn
@@ -659,6 +769,50 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     String formattedPrice = NumberFormat("#,###", "vi_VN").format(widget.product['price']);
 
+    int originalPrice = widget.product['price'];
+    int price = originalPrice;
+    String discountText = "";
+
+    // Check if there is a promotion for this product and calculate the discounted price
+    if (_promotions.isNotEmpty) {
+      for (var promoEntry in _promotions.entries) {
+        final promotion = promoEntry.value;
+
+        // Ensure the products list exists and is not null
+        final products = promotion['products'];
+        if (products != null && products is List && products.contains(widget.product['id'].toString())) {
+          // Check if the current product ID (as string) is in the promotion's 'products' list
+          if (DateTime.now().isAfter(DateTime.parse(promotion['startDate'])) &&
+              DateTime.now().isBefore(DateTime.parse(promotion['endDate']))) {
+            final int discountPercent = promotion['discountPercent'];
+            price = originalPrice - (originalPrice * discountPercent ~/ 100); // Calculate discounted price
+            discountText = "-$discountPercent%";
+            break; // Exit the loop once a matching promotion is found
+          }
+        }
+      }
+    }
+
+    // Format the new price (if applicable)
+    String formattedDiscountedPrice = NumberFormat("#,###", "vi_VN").format(price);
+
+
+    // Retrieve the average rating and total reviews for the product
+    int totalReviews = 0;
+    double averageRating = 0.0;
+
+    _reviews.forEach((reviewId, review) {
+      if (review['productId']?.toString() == widget.product['id'].toString()) {
+        // If the productId in the review matches the current product
+        totalReviews += 1;
+        averageRating += (review['productRating']?.toDouble() ?? 0.0);
+
+      }
+    });
+
+    if (totalReviews > 0) {
+      averageRating /= totalReviews; // Calculate average rating
+    }
     return Scaffold(
       backgroundColor: Colors.grey[100],
       body: CustomScrollView(
@@ -668,8 +822,9 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
           SliverToBoxAdapter(
             child: Column(
               children: [
-                _buildProductInfo(formattedPrice),
+                _buildProductInfo(formattedPrice, formattedDiscountedPrice,  discountText, totalReviews ,averageRating ),
                 _buildDescription(),
+                buildReviews(),
                 _buildDeliveryInfo(),
                 const SizedBox(height: 100),
               ],
@@ -680,93 +835,8 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
       bottomNavigationBar: _buildBottomBar(),
     );
   }
+  Widget _buildProductInfo(String formattedPrice,String formattedDiscountedPrice, String discountText,int totalReviews,double averageRating) {
 
-  Widget _buildSliverAppBar() {
-    return SliverAppBar(
-      expandedHeight: 300,
-      pinned: true,
-      stretch: true,
-      backgroundColor: Colors.white,
-      flexibleSpace: FlexibleSpaceBar(
-        stretchModes: const [
-          StretchMode.zoomBackground,
-          StretchMode.blurBackground,
-        ],
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            Hero(
-              tag: 'product-${widget.product['id']}',
-              child: CarouselSlider(
-                options: CarouselOptions(
-                  height: double.infinity,
-                  viewportFraction: 1.0,
-                  autoPlay: true,
-                  autoPlayInterval: const Duration(seconds: 5),
-                ),
-                items: [
-                  widget.product['image'],
-                  if (widget.product['image1'] != null) widget.product['image1'],
-                ].map((url) {
-                  return GestureDetector(
-                    onTap: () => _openImageViewer(context, [url]),
-                    child: CachedNetworkImage(
-                      imageUrl: url,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey[300],
-                        child: const Center(child: CircularProgressIndicator()),
-                      ),
-                      errorWidget: (context, url, error) => const Icon(Icons.error),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            const Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black54, Colors.transparent],
-                  ),
-                ),
-                child: SizedBox(height: 80),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        IconButton(
-          icon: Icon(
-            _isFavorite ? Icons.favorite : Icons.favorite_border,
-            color: _isFavorite ? Colors.red : Colors.white,
-          ),
-          onPressed: () {
-            addToWishlist();
-            _controller.forward().then((_) => _controller.reverse());
-          },
-        ),
-        IconButton(
-          key: cartKey, // Thêm key vào đây
-          icon: const Icon(Icons.shopping_cart, color: Colors.white),
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => OrderDetailsScreen()),
-          ),
-        ),
-      ],
-
-
-    );
-  }
-
-  Widget _buildProductInfo(String formattedPrice) {
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
@@ -811,28 +881,44 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
               ),
               const Spacer(),
               const Icon(Icons.star, color: Colors.amber, size: 20),
-              const Text(
-                " 4.5",
+               Text(
+                 " ${averageRating.toStringAsFixed(1)}",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
               ),
-              Text(
-                " (128)",
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
+              if (totalReviews > 0)
+                Text(
+                  " ($totalReviews)",
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
                 ),
-              ),
+
             ],
           ),
           const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Display the original price if a discount is available
+              if (discountText.isNotEmpty) ...[
+                Text(
+                  "$formattedPrice₫",
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey, // Original price color
+                    decoration: TextDecoration.lineThrough, // Strikethrough
+                  ),
+                ),
+                const SizedBox(width: 8), // Space between original and discounted prices
+              ],
+              // Display the discounted price
               Text(
-                "$formattedPrice₫",
+                "$formattedDiscountedPrice₫",
                 style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -841,18 +927,36 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  "-20%",
-                  style: TextStyle(
-                    color: Colors.red.shade700,
-                    fontWeight: FontWeight.bold,
+              //   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              //   decoration: BoxDecoration(
+              //     color: Colors.red.shade50,
+              //     borderRadius: BorderRadius.circular(4),
+              //   ),
+              //   child: Text(
+              //     "$discountText",
+              //     style: TextStyle(
+              //       color: Colors.red.shade700,
+              //       fontWeight: FontWeight.bold,
+              //     ),
+              //   ),
+              // ),
+                child: (
+
+                    discountText  != "0%")
+                    ? Container(
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                ),
+                  child: Text(
+                    '$discountText', // Display percentage as integer
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+                    : Container(), // If discountPercent is null or less than 0, show nothing
               ),
             ],
           ),
@@ -860,6 +964,280 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
       ),
     );
   }
+
+
+  Widget buildReviews() {
+    if (isLoading) return Center(child: CircularProgressIndicator());
+    if (reviews.isEmpty) return Container();
+
+    List<MapEntry<String, dynamic>> sortedReviews = reviews.entries.toList()
+      ..sort((a, b) => (b.value['timestamp'] as int).compareTo(a.value['timestamp'] as int));
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Đánh Giá Sản Phẩm',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('(${reviews.length})', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+              if (reviews.length > 2)
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AllReviewsPage(reviews: sortedReviews, product: widget.product),
+                      ),
+                    );
+                  },
+                  child: Text('Tất cả'),
+                ),
+            ],
+          ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            itemCount: sortedReviews.length > 2 ? 2 : sortedReviews.length,
+            itemBuilder: (context, index) {
+              final review = sortedReviews[index].value;
+              return _buildReviewItem(review);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildReviewItem(Map<dynamic, dynamic> review) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUserId = currentUser?.uid;
+
+    // Check if the current review is from the logged-in user
+    final isCurrentUser = review['userId'] == currentUserId;
+
+    // Load the user's photo URL (check if it's from Google)
+    final String userPhotoUrl = isCurrentUser
+        ? (currentUser?.photoURL ?? 'https://via.placeholder.com/150')
+        :  'https://via.placeholder.com/150';  // Default to review image if not current user
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundImage: NetworkImage(userPhotoUrl),  // Display the user's profile picture
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review['username'] ?? '',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    Row(
+                      children: [
+                        ...List.generate(
+                          5,
+                              (i) => Icon(
+                            Icons.star,
+                            color: i < (review['productRating'] ?? 0)
+                                ? Colors.amber
+                                : Colors.grey[300],
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          DateFormat('dd/MM/yyyy').format(
+                            DateTime.fromMillisecondsSinceEpoch(
+                              review['timestamp'] as int,
+                            ),
+                          ),
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (review['review']?.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(review['review']),
+            ),
+          if (review['imageReview'] != null || review['videoReview'] != null)
+            Container(
+              height: 120,
+              margin: const EdgeInsets.only(top: 8),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: _buildMediaItems(review),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+
+
+  List<Widget> _buildMediaItems(Map<dynamic, dynamic> review) {
+    List<Widget> items = [];
+    List<String> reviewImages = [];
+// Add video if exists
+    if (review['videoReview'] != null) {
+      final videoUrl = review['videoReview'];
+      items.add(_buildVideoItem(videoUrl, reviewImages));
+    }
+    // Collect all images
+    ['imageReview', 'imageReview1', 'imageReview2'].forEach((key) {
+      if (review[key] != null) {
+        reviewImages.add(review[key]);
+        items.add(_buildImageItem(review[key], reviewImages, review['videoReview']));
+      }
+    });
+
+
+
+    return items;
+  }
+
+  Widget _buildImageItem(String url, List<String> allImages, String? videoUrl) {
+    return GestureDetector(
+      onTap: () => _viewMedia(allImages.indexOf(url), allImages, videoUrl, isVideo: false),
+      child: Container(
+        width: 120,
+        margin: const EdgeInsets.only(right: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          image: DecorationImage(
+            image: NetworkImage(url),
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoItem(String url, List<String> reviewImages) {
+    return GestureDetector(
+      onTap: () => _viewMedia(0, reviewImages,url, isVideo: true),
+      child: Container(
+        width: 120,
+        margin: const EdgeInsets.only(right: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: Colors.grey[200],
+        ),
+        child: FutureBuilder<VideoPlayerController>(
+          future: _initializeVideoController(url), // Pass the video URL here
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                width: 120,
+                height: 120,
+                color: Colors.black12,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            } else if (snapshot.hasError) {
+              return Container(
+                width: 120,
+                height: 120,
+                color: Colors.black12,
+                child: Center(child: Icon(Icons.error, color: Colors.red)),
+              );
+            } else if (snapshot.hasData) {
+              final controller = snapshot.data!;
+              return GestureDetector(
+                onTap: () => _viewMedia(0, reviewImages,url, isVideo: true),
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 120,
+                      height: 120,
+                      margin: EdgeInsets.only(right: 8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: AspectRatio(
+                          aspectRatio: controller.value.aspectRatio,
+                          child: VideoPlayer(controller),
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: Icon(
+                        Icons.play_circle_outline,
+                        size: 40,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            } else {
+              return Container(); // Return an empty container if no data
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _viewMedia(int index, List<String> images, String? video, {required bool isVideo}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MediaViewerString(
+          images: images,
+          video: video,
+          initialIndex: index,
+          isVideo: isVideo,
+        ),
+      ),
+    );
+  }
+
+  Future<VideoPlayerController> _initializeVideoController(String url) async {
+    final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+    await controller.initialize();
+    return controller;
+  }
+
+
+
+
 
   Widget _buildDescription() {
     return Container(
@@ -973,7 +1351,7 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
       ],
     );
   }
-
+  /// số lượng và thêm vào giỏ
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1009,9 +1387,12 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
                       maxQuantity!,
                           (value) => setState(() => quantity = value),
                     ),
-                    child: SizedBox(  // Sử dụng Container để chỉnh chiều rộng
+                    child: Container(  // Sử dụng Container để chỉnh chiều rộng
                       width: 40,  // Đặt chiều rộng cho Container
                       child: Text(
+
+
+                        key: productKey, // Gắn key vào đây
                         '$quantity',
                         style: const TextStyle(fontSize: 18),
                         textAlign: TextAlign.center,  // Căn giữa văn bản
@@ -1030,20 +1411,19 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
             Expanded(
               child: ElevatedButton(
                 onPressed: () {
-                  animateShrinkAndFly(context, productKey, cartKey);
+                  animateShrinkAndFly(context, productKey, cartKey); // Gọi hiệu ứng di chuyển
                   Future.delayed(Duration(milliseconds: 700), () {
-                    addToCart();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          "Đã thêm ${widget.product['product_name']} vào giỏ hàng",
-                        ),
-                        duration: const Duration(seconds: 2),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                    addToCart(); // Gọi hàm thêm vào giỏ hàng
+                    // ScaffoldMessenger.of(context).showSnackBar(
+                    //   SnackBar(
+                    //     content: Text("Đã thêm ${widget.product['product_name']} vào giỏ hàng"),
+                    //     duration: const Duration(seconds: 2),
+                    //     behavior: SnackBarBehavior.floating,
+                    //   ),
+                    // );
                   });
                 },
+
 
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
@@ -1066,7 +1446,91 @@ class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderSt
       ),
     );
   }
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 300,
+      pinned: true,
+      stretch: true,
+      backgroundColor: Colors.white,
+      flexibleSpace: FlexibleSpaceBar(
+        stretchModes: const [
+          StretchMode.zoomBackground,
+          StretchMode.blurBackground,
+        ],
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Hero(
 
+              tag: 'product-${widget.product['id']}',
+              child: CarouselSlider(
+                options: CarouselOptions(
+                  height: double.infinity,
+                  viewportFraction: 1.0,
+                  autoPlay: true,
+                  autoPlayInterval: const Duration(seconds: 5),
+                ),
+                items: [
+                  widget.product['image'],
+                  if (widget.product['image1'] != null) widget.product['image1'],
+                ].map((url) {
+                  return GestureDetector(
+                    onTap: () => _openImageViewer(context, [url]),
+                    child: CachedNetworkImage(
+                      imageUrl: url,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey[300],
+                        child: const Center(child: CircularProgressIndicator()),
+                      ),
+                      errorWidget: (context, url, error) => const Icon(Icons.error),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black54, Colors.transparent],
+                  ),
+                ),
+                child: SizedBox(height: 80),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(
+            _isFavorite ? Icons.favorite : Icons.favorite_border,
+            color: _isFavorite ? Colors.red : Colors.grey,
+          ),
+          onPressed: () {
+            addToWishlist();
+            _controller.forward().then((_) => _controller.reverse());
+          },
+        ),
+        IconButton(
+          key: cartKey, // Thêm key vào đây
+          icon: const Icon(Icons.shopping_cart, color: Colors.grey),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => OrderDetailsScreen()),
+          ),
+        ),
+      ],
+
+
+    );
+  }
   Widget _buildQuantityButton({
     required IconData icon,
     required VoidCallback onPressed,

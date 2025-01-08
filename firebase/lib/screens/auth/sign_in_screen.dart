@@ -348,7 +348,7 @@ class ShimmerText extends StatefulWidget {
   final Color baseColor;
   final Color highlightColor;
 
-  const ShimmerText(this.text, {super.key, 
+  const ShimmerText(this.text, {super.key,
     required this.baseColor,
     required this.highlightColor,
   });

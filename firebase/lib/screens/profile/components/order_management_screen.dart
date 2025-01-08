@@ -69,6 +69,35 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
       });
     }
   }
+  String getOrderStatus(String status) {
+    switch (status) {
+      case 'Pending':
+        return 'Đang chờ xử lý';
+      case 'Processing':
+        return 'Xác nhận giao hàng';
+      case 'Completed':
+        return 'Hoàn thành';
+      case 'Cancelled':
+        return 'Đã hủy';
+      default:
+        return status; // Giữ nguyên nếu trạng thái không nằm trong danh sách
+    }
+  }
+
+  Color getOrderStatusColor(String status) {
+    switch (status) {
+      case 'Pending':
+        return Colors.orangeAccent;
+      case 'Processing':
+        return Colors.blueAccent;
+      case 'Completed':
+        return Colors.green;
+      case 'Cancelled':
+        return Colors.redAccent;
+      default:
+        return Colors.grey; // Màu mặc định nếu trạng thái không nằm trong danh sách
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,15 +149,15 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
                     const SizedBox(height: 5),
                     Chip(
                       label: Text(
-                        order['status'],
+                        getOrderStatus(order['status']),
                         style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold),
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      backgroundColor: order['status'] == 'Đang xử lý'
-                          ? Colors.orangeAccent
-                          : Colors.green,
+                      backgroundColor: getOrderStatusColor(order['status']),
                     ),
+
                   ],
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios),
@@ -208,11 +237,16 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
 
 
 
-
-class OrderDetailsScreen extends StatelessWidget {
+class OrderDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> order;
 
   const OrderDetailsScreen({super.key, required this.order});
+
+  @override
+  State<OrderDetailsScreen> createState() => _OrderDetailsScreenState();
+}
+class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
+  bool hasReview = false;  // Declare it as a mutable variable
 
   Future<Map<String, dynamic>?> _getProductReview(String orderId, String productId) async {
     try {
@@ -241,7 +275,7 @@ class OrderDetailsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "Chi tiết đơn hàng #${order['id']}",
+          "Chi tiết đơn hàng #${widget.order['id']}",
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.greenAccent,
@@ -279,7 +313,7 @@ class OrderDetailsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          order['customerName'] ?? 'Chưa có thông tin',
+                          widget.order['customerName'] ?? 'Chưa có thông tin',
                           style: const TextStyle(fontSize: 16),
                         ),
                         const SizedBox(height: 10),
@@ -299,7 +333,7 @@ class OrderDetailsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          order['address'] ?? 'Chưa có thông tin',
+                          widget.order['address'] ?? 'Chưa có thông tin',
                           style: const TextStyle(fontSize: 16),
                         ),
                         const SizedBox(height: 10),
@@ -318,7 +352,7 @@ class OrderDetailsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          order['phone'] ?? 'Chưa có thông tin',
+                          widget.order['phone'] ?? 'Chưa có thông tin',
                           style: const TextStyle(fontSize: 16),
                         ),
                       ],
@@ -351,16 +385,16 @@ class OrderDetailsScreen extends StatelessWidget {
                         Divider(thickness: 1, color: Colors.grey.shade300),
                         const SizedBox(height: 10),
                         ListView.separated(
-                          itemCount: (order['items'] as List).length,
+                          itemCount: (widget.order['items'] as List).length,
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           separatorBuilder: (context, index) => const Divider(),
                           itemBuilder: (context, index) {
-                            final item = (order['items'] as List)[index];
+                            final item = (widget.order['items'] as List)[index];
                             return FutureBuilder<Map<String, dynamic>?>(
-                              future: _getProductReview(order['id'], item['productId']),
+                              future: _getProductReview(widget.order['id'], item['productId']),
                               builder: (context, snapshot) {
-                                final hasReview = snapshot.hasData && snapshot.data != null;
+                                var hasReview = snapshot.hasData && snapshot.data != null;
 
                                 return Container(
                                   padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -446,29 +480,7 @@ class OrderDetailsScreen extends StatelessWidget {
                                                         ),
                                                         const SizedBox(height: 4),
                                                         Text(snapshot.data!['review']),
-                                                        if (snapshot.data!['images'] != null) ...[
-                                                          const SizedBox(height: 8),
-                                                          const Text('Hình ảnh:', style: TextStyle(fontWeight: FontWeight.bold)),
-                                                          const SizedBox(height: 4),
-                                                          SizedBox(
-                                                            height: 100,
-                                                            child: ListView.builder(
-                                                              scrollDirection: Axis.horizontal,
-                                                              itemCount: (snapshot.data!['images'] as List).length,
-                                                              itemBuilder: (context, index) {
-                                                                return Padding(
-                                                                  padding: const EdgeInsets.only(right: 8),
-                                                                  child: Image.network(
-                                                                    snapshot.data!['images'][index],
-                                                                    height: 100,
-                                                                    width: 100,
-                                                                    fit: BoxFit.cover,
-                                                                  ),
-                                                                );
-                                                              },
-                                                            ),
-                                                          ),
-                                                        ],
+
                                                       ],
                                                     ),
                                                   ),
@@ -485,7 +497,7 @@ class OrderDetailsScreen extends StatelessWidget {
                                                 context,
                                                 MaterialPageRoute(
                                                   builder: (context) => ProductReviewScreen(
-                                                    orderId: order['id'],
+                                                    orderId: widget.order['id'],
                                                     productId: item['productId'],
                                                     title: item['title'],
                                                     price: item['price'].toDouble(),
@@ -493,7 +505,12 @@ class OrderDetailsScreen extends StatelessWidget {
                                                     image: item['image'],
                                                   ),
                                                 ),
-                                              );
+                                              ).then((_) {
+                                                // After review submission, fetch the updated review status
+                                                setState(() {
+                                                  hasReview = true; // Update the status of hasReview
+                                                });
+                                              });
                                             }
                                           },
                                           child: Text(
@@ -545,7 +562,7 @@ class OrderDetailsScreen extends StatelessWidget {
                               style: TextStyle(fontSize: 16),
                             ),
                             Text(
-                              "${NumberFormat("#,##0", "vi_VN").format(order['total'])} VNĐ",
+                              "${NumberFormat("#,##0", "vi_VN").format(widget.order['total'])} VNĐ",
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -563,7 +580,7 @@ class OrderDetailsScreen extends StatelessWidget {
                               style: TextStyle(fontSize: 16),
                             ),
                             Text(
-                              order['paymentMethod'] ?? 'Chưa rõ',
+                              widget.order['paymentMethod'] ?? 'Chưa rõ',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

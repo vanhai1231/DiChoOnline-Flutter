@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'notifications/NotificationBadgeProvider.dart';
 import 'notifications/notifications_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/orderDetails/order_details_screen.dart';
@@ -19,7 +20,11 @@ class _EntryPointState extends State<EntryPoint> {
   int _selectedIndex = 0;
   bool _showNotificationBadge = false;
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-
+  void _updateBadge(bool show) {
+    setState(() {
+      _showNotificationBadge = show;
+    });
+  }
   final List<Map<String, dynamic>> _navitems = [
     {"icon": "assets/icons/home.svg", "title": "Trang chủ"},
     {"icon": "assets/icons/bell.svg", "title": "Thông báo"},
@@ -33,7 +38,12 @@ class _EntryPointState extends State<EntryPoint> {
     _initializeNotifications();
     _setupNotificationListener();
   }
-
+// Phương thức công khai để cập nhật giá trị _showNotificationBadge
+  void updateNotificationBadge(bool show) {
+    setState(() {
+      _showNotificationBadge = show;
+    });
+  }
   Future<void> _initializeNotifications() async {
     const AndroidInitializationSettings initializationSettingsAndroid =
     AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -70,7 +80,11 @@ class _EntryPointState extends State<EntryPoint> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return NotificationBadgeProvider(
+        showNotificationBadge: _showNotificationBadge,
+        updateBadge: _updateBadge,
+
+      child: Scaffold(
       body: _screens[_selectedIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -137,6 +151,7 @@ class _EntryPointState extends State<EntryPoint> {
           ),
         ),
       ),
+    )
     );
   }
 }

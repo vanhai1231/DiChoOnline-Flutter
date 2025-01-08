@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../details/detail_screen.dart' as detail;
 
 class SearchScreen extends StatefulWidget {
-  final List<Map<String, dynamic>> products; // Danh sách sản phẩm được truyền vào
+  final List<Map<String, dynamic>> products;
 
   const SearchScreen({super.key, required this.products});
 
@@ -11,20 +11,57 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _filteredProducts = []; // Danh sách sản phẩm sau khi tìm kiếm
+  TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _filteredProducts = [];
+  List<Map<String, dynamic>> _displayedProducts = [];
+  final int _initialDisplayCount = 4;
+  bool _hasMore = true;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _filteredProducts = widget.products; // Ban đầu hiển thị toàn bộ sản phẩm
+    _filteredProducts = widget.products;
+    _loadInitialProducts();
     _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _loadInitialProducts() {
+    setState(() {
+      _displayedProducts = _filteredProducts.take(_initialDisplayCount).toList();
+      _hasMore = _filteredProducts.length > _initialDisplayCount;
+    });
+  }
+
+  void _loadMoreProducts() {
+    if (!_hasMore) return;
+
+    final currentLength = _displayedProducts.length;
+    final nextLength = currentLength + 4;
+
+    setState(() {
+      if (nextLength >= _filteredProducts.length) {
+        _displayedProducts = _filteredProducts;
+        _hasMore = false;
+      } else {
+        _displayedProducts = _filteredProducts.take(nextLength).toList();
+      }
+    });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.8) {
+      _loadMoreProducts();
+    }
   }
 
   void _onSearchChanged() {
@@ -34,6 +71,7 @@ class _SearchScreenState extends State<SearchScreen> {
           .toLowerCase()
           .contains(_searchController.text.toLowerCase()))
           .toList();
+      _loadInitialProducts();
     });
   }
 
@@ -64,24 +102,22 @@ class _SearchScreenState extends State<SearchScreen> {
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
-              const Icon(Icons.camera_alt, color: Colors.grey), // Thêm icon máy ảnh
+              const Icon(Icons.camera_alt, color: Colors.grey),
             ],
           ),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.close, color: Colors.grey),
-            onPressed: () {
-              Navigator.pop(context); // Đóng màn hình tìm kiếm
-            },
+            onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
       body: SingleChildScrollView(
+        controller: _scrollController,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Gợi ý tìm kiếm
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Column(
@@ -106,7 +142,6 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             const Divider(),
-            // Sản phẩm gợi ý
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: const Text(
@@ -125,14 +160,17 @@ class _SearchScreenState extends State<SearchScreen> {
                   crossAxisSpacing: 10,
                   childAspectRatio: 0.75,
                 ),
-                itemCount: _filteredProducts.isEmpty
-                    ? widget.products.length
-                    : _filteredProducts.length,
+                itemCount: _displayedProducts.length + (_hasMore ? 1 : 0),
                 itemBuilder: (context, index) {
-                  final product = _filteredProducts.isEmpty
-                      ? widget.products[index]
-                      : _filteredProducts[index];
-                  return _buildProductCard(product);
+                  if (index == _displayedProducts.length) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  return _buildProductCard(_displayedProducts[index]);
                 },
               ),
             ),
@@ -184,7 +222,7 @@ class _SearchScreenState extends State<SearchScreen> {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
               child: Image.network(
                 product['image'],
-                height: 120,
+                height: 180,
                 width: double.infinity,
                 fit: BoxFit.cover,
               ),
@@ -204,14 +242,14 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '${product['price']} ₫',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  // Text(
+                  //   '${product['price']} ₫',
+                  //   style: const TextStyle(
+                  //     fontSize: 14,
+                  //     color: Colors.red,
+                  //     fontWeight: FontWeight.bold,
+                  //   ),
+                  // ),
                 ],
               ),
             ),

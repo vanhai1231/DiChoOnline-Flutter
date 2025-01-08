@@ -1,3 +1,4 @@
+import 'package:firebase/promotions/DiscountPage.dart';
 import 'package:firebase/screens/profile/components/profile_details_screen.dart';
 import 'package:firebase/screens/profile/components/shipping_address_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -88,6 +89,15 @@ class _BodyState extends State<Body> {
 
   @override
   Widget build(BuildContext context) {
+    User? user = FirebaseAuth.instance.currentUser;
+    bool isEmailPasswordUser = false;
+
+    // If user is logged in, check the provider
+    if (user != null) {
+      // Check if the user is authenticated with email/password
+      isEmailPasswordUser = user.providerData.any((provider) =>
+      provider.providerId == 'password'); // 'password' is the ID for email/password authentication
+    }
     return SafeArea(
       child: SingleChildScrollView(
         child: Padding(
@@ -120,17 +130,18 @@ class _BodyState extends State<Body> {
                   );
                 },
               ),
-              ProfileMenuCard(
-                svgSrc: "assets/icons/lock.svg",
-                title: "Đổi mật khẩu",
-                subTitle: "Đổi mật khẩu của bạn",
-                press: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ModernChangePasswordScreen()),
-                  );
-                },
-              ),
+              if (isEmailPasswordUser)
+                ProfileMenuCard(
+                  svgSrc: "assets/icons/lock.svg",
+                  title: "Đổi mật khẩu",
+                  subTitle: "Đổi mật khẩu của bạn",
+                  press: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ModernChangePasswordScreen()),
+                    );
+                  },
+                ),
               ProfileMenuCard(
                 svgSrc: "assets/icons/order.svg", // Thêm icon tương ứng
                 title: "Quản lý đơn hàng",
@@ -174,6 +185,18 @@ class _BodyState extends State<Body> {
                   );
                 },
               ),
+              // Mục Danh sách yêu thích
+              // ProfileMenuCard(
+              //   pngSrc: "assets/icons/heart.png", // Sử dụng pngSrc thay vì svgSrc
+              //   title: "Giảm giá",
+              //   subTitle: "Xem và quản lý các mặt hàng yêu thích của bạn",
+              //   press: () {
+              //     Navigator.push(
+              //       context,
+              //       MaterialPageRoute(builder: (context) => DiscountPage()),
+              //     );
+              //   },
+              // ),
 
               // Mục Đăng xuất
               ProfileMenuCard(

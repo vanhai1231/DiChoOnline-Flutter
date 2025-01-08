@@ -12,7 +12,7 @@ import '../../constants.dart';
 import '../../entry_point.dart';
 
 class FindRestaurantsScreen extends StatefulWidget {
-  const FindRestaurantsScreen({super.key});
+  const FindRestaurantsScreen({Key? key}) : super(key: key);
 
   @override
   _FindRestaurantsScreenState createState() => _FindRestaurantsScreenState();

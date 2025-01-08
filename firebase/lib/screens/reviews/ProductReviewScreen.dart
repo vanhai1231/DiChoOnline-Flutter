@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,10 +6,13 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'package:path/path.dart' as path;
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
-
 import '../../GoogleDriveApi/DriveService.dart';
-import '../../VideoPlayer/VideoPlayerPreview.dart';
+import '../../VideoPlayer/MediaViewer.dart';
+
 
 class ProductReviewScreen extends StatefulWidget {
   final String orderId;
@@ -47,9 +51,9 @@ class _ProductReviewScreenState extends State<ProductReviewScreen> {
   int _productRating = 5;
   int _sellerServiceRating = 5;
   int _deliveryRating = 5;
-  final List<File> _imageFiles = [];
+  List<File> _imageFiles = [];
   File? _videoFile;
-  final bool _showUsername = true;
+  bool _showUsername = true;
 
   Future<void> _pickImages() async {
     final picker = ImagePicker();
@@ -95,6 +99,8 @@ class _ProductReviewScreenState extends State<ProductReviewScreen> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+
+
   Future<void> _submitReview() async {
     if (_reviewController.text.isEmpty || user == null) return;
 
@@ -126,6 +132,7 @@ class _ProductReviewScreenState extends State<ProductReviewScreen> {
             await _driveService.uploadFile(videoFileName, _videoFile!.path);
         if (videoFileId != null) {
           videoPath = 'https://drive.google.com/uc?id=$videoFileId';
+
         } else {
           _showSnackbar('Có lỗi xảy ra khi tải video lên Google Drive');
           return;
@@ -152,7 +159,15 @@ class _ProductReviewScreenState extends State<ProductReviewScreen> {
       });
 
       if (mounted) {
+        await FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: 'https://fir-23ae1-default-rtdb.asia-southeast1.firebasedatabase.app',
+        ).ref('orders/${widget.orderId}')
+            .update({
+          'reviewStatus': 'completed',
+        });
         Navigator.pop(context);
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đánh giá đã được gửi thành công')),
         );
@@ -182,137 +197,6 @@ class _ProductReviewScreenState extends State<ProductReviewScreen> {
     );
   }
 
-
-  // @override
-  // Widget build(BuildContext context) {
-  //   return Scaffold(
-  //     appBar: AppBar(
-  //       leading: IconButton(
-  //         icon: const Icon(Icons.arrow_back),
-  //         onPressed: () => Navigator.pop(context),
-  //       ),
-  //       title: const Text('Đánh giá sản phẩm'),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: _submitReview,
-  //           child: const Text(
-  //             'Gửi',
-  //             style: TextStyle(fontSize: 16),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //     body: SingleChildScrollView(
-  //
-  //       padding: const EdgeInsets.all(16),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           Container(
-  //             height: 80,
-  //             child: Row(
-  //               children: [
-  //                 SizedBox(
-  //                   width: 80,
-  //                   height: 80,
-  //                   child: ClipRRect(
-  //                     borderRadius: BorderRadius.circular(8),
-  //                     child: Image.network(
-  //                       widget.image,
-  //                       fit: BoxFit.cover,
-  //                       errorBuilder: (context, error, stackTrace) =>
-  //                           Icon(Icons.image),
-  //                     ),
-  //                   ),
-  //                 ),
-  //                 const SizedBox(width: 16),
-  //                 Expanded(
-  //                   child: Column(
-  //                     crossAxisAlignment: CrossAxisAlignment.start,
-  //                     mainAxisAlignment: MainAxisAlignment.center,
-  //                     children: [
-  //                       Text(
-  //                         widget.title,
-  //                         style: const TextStyle(fontSize: 16),
-  //                         maxLines: 2,
-  //                         overflow: TextOverflow.ellipsis,
-  //                       ),
-  //                       Text(
-  //                         'Phân loại: #${widget.productId}',
-  //                         style: const TextStyle(color: Colors.grey),
-  //                       ),
-  //                     ],
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //           const Divider(),
-  //           Column(
-  //             crossAxisAlignment: CrossAxisAlignment.start,
-  //             children: [
-  //               const Text(
-  //                 'Chất lượng sản phẩm',
-  //                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-  //               ),
-  //               _buildRatingStars(
-  //                 _productRating,
-  //                 (rating) => setState(() => _productRating = rating),
-  //               ),
-  //               const Text(
-  //                 'Dịch vụ của người bán',
-  //                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-  //               ),
-  //               _buildRatingStars(
-  //                 _sellerServiceRating,
-  //                 (rating) => setState(() => _sellerServiceRating = rating),
-  //               ),
-  //               const Text(
-  //                 'Tốc độ giao hàng',
-  //                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-  //               ),
-  //               _buildRatingStars(
-  //                 _deliveryRating,
-  //                 (rating) => setState(() => _deliveryRating = rating),
-  //               ),
-  //             ],
-  //           ),
-  //           const SizedBox(height: 16),
-  //           TextField(
-  //             controller: _reviewController,
-  //             maxLines: 5,
-  //             maxLength: 2000,
-  //             decoration: const InputDecoration(
-  //               hintText: 'Hãy chia sẻ nhận xét cho sản phẩm này bạn nhé!',
-  //               border: OutlineInputBorder(),
-  //             ),
-  //           ),
-  //           Row(
-  //             children: [
-  //               Expanded(
-  //                 child: OutlinedButton.icon(
-  //                   onPressed: _imageFiles.length < 3 ? _pickImages : null,
-  //                   icon: const Icon(Icons.camera_alt),
-  //                   label: Text('Thêm Hình ảnh (${_imageFiles.length}/3)'),
-  //                 ),
-  //               ),
-  //               const SizedBox(width: 16),
-  //               Expanded(
-  //                 child: OutlinedButton.icon(
-  //                   onPressed: _videoFile == null ? _pickVideo : null,
-  //                   icon: const Icon(Icons.videocam),
-  //                   label: const Text('Thêm Video'),
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //           const SizedBox(height: 16),
-  //           _buildMediaPreview(),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -342,7 +226,7 @@ class _ProductReviewScreenState extends State<ProductReviewScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
+              Container(
                 height: 80,
                 child: Row(
                   children: [
@@ -451,7 +335,7 @@ class _ProductReviewScreenState extends State<ProductReviewScreen> {
 
 
   Widget _buildMediaPreview() {
-    return SizedBox(
+    return Container(
       height: 120,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -578,76 +462,7 @@ class _ProductReviewScreenState extends State<ProductReviewScreen> {
   @override
   void dispose() {
     _reviewController.dispose();
-
     super.dispose();
   }
 }
-// Future<void> _pickImage() async {
-//   final pickedFile =
-//       await ImagePicker().pickImage(source: ImageSource.gallery);
-//   if (pickedFile != null) {
-//     setState(() {
-//       _imageFile = File(pickedFile.path);
-//     });
-//     final file = File(pickedFile.path);
-//     final fileName = path.basename(file.path);
-//
-//     // Tải lên Google Drive
-//     final fileId = await _driveService.uploadFile(fileName, file.path);
-//
-//     if (fileId != null) {
-//       _showSnackbar('Hình ảnh đã được tải lên Google Drive với ID: $fileId');
-//     } else {
-//       _showSnackbar('Có lỗi xảy ra khi tải lên Google Drive');
-//     }
-//   } else {
-//     _showSnackbar('Không có hình ảnh nào được chọn');
-//   }
-// }
-//// if (_imageFile != null) {
-//       //   final imageFileName =
-//       //       '${DateTime.now().millisecondsSinceEpoch}_image.jpg';
-//       //   imagePath = await _uploadFile(_imageFile!, imageFileName);
-//       // }
-//       //
-//       // // Upload video if exists
-//       // if (_videoFile != null) {
-//       //   final videoFileName =
-//       //       '${DateTime.now().millisecondsSinceEpoch}_video.mp4';
-//       //   videoPath = await _uploadFile(_videoFile!, videoFileName);
-//       // }
-//
-// Future<void> _pickVideo() async {
-//   final pickedFile =
-//       await ImagePicker().pickVideo(source: ImageSource.gallery);
-//   if (pickedFile != null) {
-//     setState(() {
-//       _videoFile = File(pickedFile.path);
-//     });
-//     final file = File(pickedFile.path);
-//     final fileName = path.basename(file.path);
-//
-//     // Tải lên Google Drive
-//     final fileId = await _driveService.uploadFile(fileName, file.path);
-//
-//     if (fileId != null) {
-//       _showSnackbar('Video đã được tải lên Google Drive với ID: $fileId');
-//     } else {
-//       _showSnackbar('Có lỗi xảy ra khi tải lên Google Drive');
-//     }
-//   } else {
-//     _showSnackbar('Không có video nào được chọn');
-//   }
-// }
 
-// Future<String?> _uploadFile(File file, String path) async {
-//   try {
-//     final ref = _storage.ref().child(path);
-//     final uploadTask = ref.putFile(file);
-//     final snapshot = await uploadTask;
-//     return await snapshot.ref.getDownloadURL();
-//   } catch (e) {
-//     print('Error uploading file: $e');
-//     return null;
-//   }
-// }

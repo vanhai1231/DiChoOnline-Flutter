@@ -11,14 +11,14 @@ class ShippingAddressScreen extends StatefulWidget {
   final String initialPhone;
 
   const ShippingAddressScreen({
-    super.key,
+    Key? key,
     required this.initialName,
     required this.initialAddress,
     required this.initialPhone,
-  });
+  }) : super(key: key);
+
   @override
   _ShippingAddressScreenState createState() => _ShippingAddressScreenState();
-
 }
 
 class _ShippingAddressScreenState extends State<ShippingAddressScreen> with SingleTickerProviderStateMixin {
@@ -34,6 +34,7 @@ class _ShippingAddressScreenState extends State<ShippingAddressScreen> with Sing
     app: Firebase.app(),
     databaseURL: 'https://fir-23ae1-default-rtdb.asia-southeast1.firebasedatabase.app',
   ).ref();
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +47,7 @@ class _ShippingAddressScreenState extends State<ShippingAddressScreen> with Sing
     );
     _fetchUserData();
   }
+
   // Fetch the user's current data from Firebase
   Future<void> _fetchUserData() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -67,19 +69,7 @@ class _ShippingAddressScreenState extends State<ShippingAddressScreen> with Sing
       }
     }
   }
-  // void _saveAddress() {
-  //   // TODO: Implement address saving logic
-  //   ScaffoldMessenger.of(context).showSnackBar(
-  //     SnackBar(
-  //       content: Text('Địa chỉ đã được lưu thành công'),
-  //       backgroundColor: Colors.green,
-  //       behavior: SnackBarBehavior.floating,
-  //       shape: RoundedRectangleBorder(
-  //         borderRadius: BorderRadius.circular(10),
-  //       ),
-  //     ),
-  //   );
-  // }
+
   // Save the updated address to Firebase
   Future<void> _saveAddress() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -90,13 +80,11 @@ class _ShippingAddressScreenState extends State<ShippingAddressScreen> with Sing
           final phone = _phoneController.text.trim();
           final address = _addressController.text.trim();
 
-
           // Save the data to Firebase
           await _dbRef.child('users/$userId').set({
             'name': name,
             'phone': phone,
             'address': address,
-
           });
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -111,125 +99,122 @@ class _ShippingAddressScreenState extends State<ShippingAddressScreen> with Sing
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.all(20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  FadeInDown(
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.arrow_back_ios),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        Text(
-                          'Địa chỉ giao hàng',
-                          style: GoogleFonts.montserrat(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+      body: GestureDetector(
+        onTap: () {
+          // Dismiss the keyboard when tapping outside of text fields
+          FocusScope.of(context).requestFocus(FocusNode());
+        },
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FadeInDown(
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.arrow_back_ios),
+                            onPressed: () => Navigator.pop(context),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 30),
-                  FadeInLeft(
-                    delay: Duration(milliseconds: 200),
-                    child: _buildInputField(
-                      controller: _nameController,
-                      label: 'Tên người nhận',
-                      icon: Icons.person_outline,
-                      hint: 'Nhập tên người nhận',
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  FadeInRight(
-                    delay: Duration(milliseconds: 300),
-                    child: _buildInputField(
-                      controller: _phoneController,
-                      label: 'Số điện thoại',
-                      icon: Icons.phone_outlined,
-                      hint: 'Nhập số điện thoại',
-                      keyboardType: TextInputType.phone,
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  FadeInLeft(
-                    delay: Duration(milliseconds: 400),
-                    child: _buildInputField(
-                      controller: _addressController,
-                      label: 'Địa chỉ chi tiết',
-                      icon: Icons.location_on_outlined,
-                      hint: 'Số nhà, đường, phường/xã',
-                      maxLines: 3,
-                    ),
-                  ),
-                  // SizedBox(height: 20),
-                  // FadeInRight(
-                  //   delay: Duration(milliseconds: 500),
-                  //   child: _buildInputField(
-                  //     controller: _cityController,
-                  //     label: 'Thành phố',
-                  //     icon: Icons.location_city_outlined,
-                  //     hint: 'Chọn thành phố',
-                  //   ),
-                  // ),
-                  SizedBox(height: 40),
-                  FadeInUp(
-                    delay: Duration(milliseconds: 600),
-                    child: GestureDetector(
-                      onTapDown: (_) => _controller.forward(),
-                      onTapUp: (_) {
-                        _controller.reverse();
-                        if (_formKey.currentState!.validate()) {
-                          _saveAddress();
-                        }
-                      },
-                      onTapCancel: () => _controller.reverse(),
-                      child: ScaleTransition(
-                        scale: _scaleAnimation,
-                        child: Container(
-                          width: double.infinity,
-                          height: 55,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Colors.blue[700]!, Colors.blue[400]!],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
+                          Text(
+                            'Địa chỉ giao hàng',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
                             ),
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
                           ),
-                          child: Center(
-                            child: Text(
-                              'Lưu địa chỉ',
-                              style: GoogleFonts.montserrat(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 30),
+                    FadeInLeft(
+                      delay: Duration(milliseconds: 200),
+                      child: _buildInputField(
+                        controller: _nameController,
+                        label: 'Tên người nhận',
+                        icon: Icons.person_outline,
+                        hint: 'Nhập tên người nhận',
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    FadeInRight(
+                      delay: Duration(milliseconds: 300),
+                      child: _buildInputField(
+                        controller: _phoneController,
+                        label: 'Số điện thoại',
+                        icon: Icons.phone_outlined,
+                        hint: 'Nhập số điện thoại',
+                        keyboardType: TextInputType.phone,
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    FadeInLeft(
+                      delay: Duration(milliseconds: 400),
+                      child: _buildInputField(
+                        controller: _addressController,
+                        label: 'Địa chỉ chi tiết',
+                        icon: Icons.location_on_outlined,
+                        hint: 'Số nhà, đường, phường/xã',
+                        maxLines: 3,
+                      ),
+                    ),
+                    SizedBox(height: 40),
+                    FadeInUp(
+                      delay: Duration(milliseconds: 600),
+                      child: GestureDetector(
+                        onTapDown: (_) => _controller.forward(),
+                        onTapUp: (_) {
+                          _controller.reverse();
+                          if (_formKey.currentState!.validate()) {
+                            _saveAddress();
+                          }
+                        },
+                        onTapCancel: () => _controller.reverse(),
+                        child: ScaleTransition(
+                          scale: _scaleAnimation,
+                          child: Container(
+                            width: double.infinity,
+                            height: 55,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.blue[700]!, Colors.blue[400]!],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              borderRadius: BorderRadius.circular(15),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blue.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Lưu địa chỉ',
+                                style: GoogleFonts.montserrat(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -293,8 +278,6 @@ class _ShippingAddressScreenState extends State<ShippingAddressScreen> with Sing
       ),
     );
   }
-
-
 
   @override
   void dispose() {

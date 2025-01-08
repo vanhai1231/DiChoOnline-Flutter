@@ -4,13 +4,20 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import '../../MoMoPaymentScreen.dart';
 import '../../PaypalPaymentScreen.dart';
+import '../../PaypalPaymentScreen.dart';
+import '../../notifications/NotificationBadgeProvider.dart';
 import '../profile/components/shipping_address_screen.dart';
+import 'AddAddressScreen.dart';
+
 
 class OrderDetailsScreen extends StatefulWidget {
+
   const OrderDetailsScreen({super.key});
 
   @override
@@ -36,6 +43,35 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   bool isEditing = false;
 
+  final _promotionsRef = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL: 'https://fir-23ae1-default-rtdb.asia-southeast1.firebasedatabase.app',
+  ).ref('promotions');
+
+
+  Map<dynamic, dynamic> _promotions = {};
+
+  void _loadPromotions() async {
+    try {
+      final snapshot = await _promotionsRef.get();
+      if (snapshot.exists) {
+        final data = snapshot.value as Map<dynamic, dynamic>;
+
+        // Print the data to the console for inspection
+        print("Promotions Data: $data");
+
+        setState(() {
+          // Convert Map values to List<Map<dynamic, dynamic> and update the UI
+          _promotions = Map.fromEntries(data.entries); // Keep _promotions as Map
+        });
+      }
+    } catch (error) {
+      print("Error loading promotions: $error");
+    }
+  }
+
+
+
 // danh sách lưu các sản phẩm trong giỏ hàng
   List<Map<String, dynamic>> cartItems = [];
 
@@ -48,7 +84,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     // lấy danh sách sản phẩm trong giỏ hàng khi màn hình được khởi tạo
     fetchCartItems();
     _loadUserData();
+    _loadPromotions();
   }
+
 
   // Hàm tải dữ liệu người dùng từ Firebase
   Future<void> _loadUserData() async {
@@ -107,7 +145,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       _loadUserData();
     }
   }
-
+  //giá góc
+  Map<String, double> originalPrices = {};
   /// Lấy danh sách sản phẩm trong giỏ hàng từ Firebase Realtime Database.
   Future<void> fetchCartItems() async {
     if (user == null) {
@@ -126,26 +165,59 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           .get();
       // Lấy thông tin tất cả sản phẩm từ cơ sở dữ liệu
       final productSnapshot = await dbRef.child('products').get();
+      // Lấy thông tin chương trình khuyến mãi (nếu có)
+      final promotionsSnapshot = await dbRef.child('promotions').get();
+
       // nếu giỏ hàng và sản phẩm tồn tại
       if (cartSnapshot.exists && productSnapshot.exists) {
         Map cartData = cartSnapshot.value as Map;
         Map productData = productSnapshot.value as Map;
+        Map promotionsData = promotionsSnapshot.exists ? promotionsSnapshot.value as Map : {};
 
         /// Tạo danh sách sản phẩm trong giỏ hàng bằng cách kết hợp dữ liệu giỏ hàng và sản phẩm
         List<Map<String, dynamic>> items = [];
         cartData.forEach((key, value) {
           if (productData.containsKey(value['productId'])) {
             final product = productData[value['productId']];
+            double price = product['price'].toDouble(); // Lấy giá gốc
+            double originalPrice = price; // Save the original price
+
+            // Store the original price in the global variable
+            originalPrices[value['productId']] = originalPrice;
+
+            // Kiểm tra nếu có chương trình khuyến mãi
+            if (promotionsData.isNotEmpty) {
+              for (var promoEntry in promotionsData.entries) {
+                final promotion = promoEntry.value;
+                final products = promotion['products'];
+
+                if (products != null &&
+                    products is List &&
+                    products.contains(value['productId'].toString())) {
+                  if (DateTime.now().isAfter(DateTime.parse(promotion['startDate'])) &&
+                      DateTime.now().isBefore(DateTime.parse(promotion['endDate']))) {
+                    final discountPercent = promotion['discountPercent'];
+                    price -= (price * discountPercent / 100.0); // Áp dụng giảm giá
+                    break;
+                  }
+                }
+              }
+            }
+
+            // Thêm sản phẩm vào danh sách giỏ hàng
             items.add({
               "id": key,
+              "originalPrice": originalPrice, // Store the original price
               "title": product['product_name'],
-              "price": product['price'],
+              "price": price, // Cập nhật giá với giá đã giảm
               "image": product['image'],
               "quantity": value['quantity'],
               "productId": value['productId'],
+
             });
           }
         });
+
         // Cập nhật trạng thái với danh sách sản phẩm đã lấy
         setState(() {
           cartItems = items;
@@ -160,6 +232,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       });
     }
   }
+
 
   /// update số lượng
   Future<void> updateQuantity(String itemId, int newQuantity) async {
@@ -269,6 +342,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
     return total;
   }
+
+
+
   Future<void> updateProductQuantities(List<Map<String, dynamic>> orderItems) async {
     try {
       // Tạo map để lưu các cập nhật
@@ -332,12 +408,36 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
+
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  Future<void> _showOrderNotification() async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'order_success_channel',
+      'Order Success',
+      channelDescription: 'Thông báo khi đặt hàng thành công',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      0, // ID của thông báo
+      'Đặt hàng thành công!', // Tiêu đề
+      'Đơn hàng của bạn đang trên đường!', // Nội dung
+      notificationDetails,
+    );
+  }
+
+
   ///hàm lưu vào database và xóa cart
   Future<void> saveOrderToFirebase(double total, String method) async {
-    if (user == null) return;
+    if (user == null) {
+      print("User is null, cannot place order");
+      return;
+    }
 
     try {
-
       // Danh sách các sản phẩm trong đơn hàng
       List<Map<String, dynamic>> orderItems = [];
 
@@ -346,10 +446,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         final productSnapshot = await dbRef.child('products/${item['productId']}').get();
         if (productSnapshot.exists) {
           final productData = productSnapshot.value as Map;
+
+
+
           orderItems.add({
             "productId": item['productId'],
             "title": productData['product_name'],
-            "price": productData['price'],
+            "price": total,
             "image": productData['image'],
             "quantity": item['quantity'],
           });
@@ -357,8 +460,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           print("Không tìm thấy sản phẩm với ID: ${item['productId']}");
         }
       }
+
+
+
       // Cập nhật số lượng sản phẩm trước
       await updateProductQuantities(cartItems);
+
       // Tạo đơn hàng mới trong Firebase
       final ordersRef = dbRef.child('orders').push();
       await ordersRef.set({
@@ -375,7 +482,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
       // Xóa giỏ hàng sau khi đặt hàng thành công
       await clearCart();
-
+      // Hiển thị thông báo trong ứng dụng
+      await _showOrderNotification();
+      // Cập nhật trạng thái đốm đỏ
+      final badgeProvider = NotificationBadgeProvider.of(context);
+      if (badgeProvider != null) {
+        badgeProvider.updateBadge(true);
+      }
+      // Hiển thị thông báo đặt hàng thành công
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -391,11 +505,25 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       );
     } catch (e) {
       print("Lỗi khi lưu đơn hàng: $e");
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Lỗi khi đặt hàng"),
+          content: Text("Đã xảy ra lỗi: $e"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Đóng"),
+            ),
+          ],
+        ),
+      );
     }
   }
 
 
-/// chon phuong thuc thanhtoan
+
+  /// chon phuong thuc thanhtoan
   void initiatePaymentMethodSelection(BuildContext context1) {
     showModalBottomSheet(
       context: context,
@@ -498,6 +626,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       // Tính tổng tiền từ giỏ hàng
       double total = calculateTotal();
 
+
       // Chuyển đổi tiền Việt sang USD nếu cần
       // Giả sử tỷ giá là 1 USD = 24,000 VND (tùy chỉnh tỷ giá này)
       double exchangeRate = 24000;
@@ -543,7 +672,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       // Tính tổng tiền từ giỏ hàng
       double total = calculateTotal();
       final response = await http.post(
-        Uri.parse('http://172.20.10.4:3000/create-payment-momo'), // Update with server URL
+        Uri.parse('http://192.168.1.61:3000/create-payment-momo'), // Update with server URL
         body: json.encode({'amount': total}), // Số tiền cần thanh toán
         headers: {'Content-Type': 'application/json'},
       );
@@ -697,8 +826,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 
-  @override
   Widget build(BuildContext context1) {
+
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Giỏ hàng của bạn"),
@@ -804,17 +934,28 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                 children: [
                                   Text(
                                     item['title'],
-                                    style: const TextStyle(
-                                        fontSize: 16, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 8),
+                                  // Show the original price with strike-through if there is a discount
+                                  if (item['originalPrice'] != item['price'])
+                                    Text(
+                                      "${currencyFormat.format(item['originalPrice'] as double)} VNĐ",
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        decoration: TextDecoration.lineThrough, // Strike-through for original price
+                                      ),
+                                    ),
+                                  SizedBox(width: 8),
+                                  // Always show the price, but with a special style if it's a discounted price
                                   Text(
-                                    "${currencyFormat.format(item['price'])} VNĐ",
-                                    style: const TextStyle(color: Colors.green),
+                                    "${currencyFormat.format(item['price'] as double)} VNĐ",
+                                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
                             ),
+
 
                             // Điều chỉnh số lượng
                             Row(
@@ -890,9 +1031,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () {
-              if (customerName == "Loading..." ||
-                  address == "Loading..." ||
-                  phone == "Loading...") {
+              if (customerName == "Loading..." || customerName == "" ||
+                  address == "Loading..." || address == "" ||
+                  phone == "Loading..." || phone == ""){
                 showErrorDialog(
                     "Vui lòng cập nhật đầy đủ thông tin trước khi thanh toán!");
               } else {
